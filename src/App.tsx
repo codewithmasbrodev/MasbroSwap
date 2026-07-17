@@ -58,65 +58,67 @@ function Header({ wallet, connect, disconnect }: { wallet: WalletState | null; c
 
 /* ===================== LANDING PAGE (relay.link inspired) ===================== */
 
-function LandingPage() {
-  const store = useAppStore();
-  const features = [
-    { icon: Zap, title: "Super Fast", desc: "Settlement dalam hitungan detik. Routing otomatis ke jalur tercepat di 85+ chain.", color: "#a855f7" },
-    { icon: ShieldCheck, title: "Non-Custodial", desc: "Aset tetap dalam kendali penuhmu. Masbro tidak pernah mengakses private key.", color: "#22d3ee" },
-    { icon: Fuel, title: "Gas Paling Hemat", desc: "Smart routing otomatis memilih chain dengan gas termurah untuk transaksimu.", color: "#34d399" },
-    { icon: GitBranch, title: "Multi-Chain", desc: "Bridge dan swap antar 7 chain utama: Ethereum, Base, Arbitrum, Solana & banyak lagi.", color: "#f59e0b" },
-  ];
+/* ─── CHAIN SVG ICONS ─── */
+function ChainSvg({ chain, size = 32 }: { chain: Chain; size?: number }) {
+  // Relay.link asset URLs for chain icons (by chain ID)
+  const iconUrls: Record<string, string> = {
+    base: "https://assets.relay.link/icons/square/8453/light.png",
+    arbitrum: "https://assets.relay.link/icons/square/42161/light.png",
+    ethereum: "https://assets.relay.link/icons/square/1/light.png",
+    optimism: "https://assets.relay.link/icons/square/10/light.png",
+    solana: "https://assets.relay.link/icons/square/792703809/light.png",
+    polygon: "https://assets.relay.link/icons/square/137/light.png",
+    bsc: "https://assets.relay.link/icons/square/56/light.png",
+  };
+  return <img src={iconUrls[chain.key] || ""} alt={chain.name} width={size} height={size} className="chain-svg-icon" style={{ borderRadius: size * 0.25 }} />;
+}
 
-  return <main>
+function LandingPage() {
+  return <main className="lp-main">
     {/* ─── HERO ─── */}
     <section className="lp-hero">
-      <div className="lp-hero-bg" />
-      <div className="lp-hero-content">
-        <div className="lp-badge"><Zap size={12} /> Powered by Relay Protocol</div>
-        <h1 className="lp-hero-title">
-          Swap & Bridge<br />
-          <span>Any Chain.</span><br />
-          <span className="lp-instant">Instantly.</span>
+      <div className="lp-hero-inner">
+        <div className="lp-badge">Crosschain Swap Protocol</div>
+        <h1 className="lp-title">
+          Move anything.<br />
+          <span>Any chain. Instantly.</span>
         </h1>
-        <p className="lp-hero-sub">
-          Lightning-fast cross-chain swaps — bridge assets across 7+ chains in seconds.{' '}
+        <p className="lp-sub">
+          A lightning-fast crosschain protocol — swap, bridge, and transact across 7+ chains in seconds.{' '}
           <strong>No friction. No waiting.</strong>
         </p>
-        <div className="lp-hero-actions">
-          <NavLink to="/swap" className="lp-primary-btn">
-            Start Swapping <ArrowRight size={18} />
+        <div className="lp-actions">
+          <NavLink to="/swap" className="lp-cta-btn">
+            Start Swapping <ArrowRight size={16} />
           </NavLink>
-          <a href="#features" className="lp-ghost-btn" onClick={(e) => { e.preventDefault(); document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }}>
-            Learn More
-          </a>
-        </div>
-        {/* Chain bridge visual */}
-        <div className="lp-chain-visual">
-          {CHAINS.slice(0, 5).map((chain) => (
-            <span key={chain.key} className="lp-chain-bubble" style={{ "--chain": chain.color } as React.CSSProperties}>
-              {chain.short}
-            </span>
-          ))}
-          <span className="lp-chain-connector"><Zap size={16} /></span>
-          {CHAINS.slice(5).map((chain) => (
-            <span key={chain.key} className="lp-chain-bubble" style={{ "--chain": chain.color } as React.CSSProperties}>
-              {chain.short}
-            </span>
-          ))}
+          <a href="#features" onClick={(e) => { e.preventDefault(); document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }} className="lp-link">Learn more →</a>
         </div>
       </div>
     </section>
 
-    {/* ─── STATS BAR ─── */}
+    {/* ─── CHAINS BAR ─── */}
+    <section className="lp-chains-bar">
+      <span className="lp-chains-label">Supported chains</span>
+      <div className="lp-chains-row">
+        {CHAINS.map((chain) => (
+          <div key={chain.key} className="lp-chain-logo">
+            <ChainSvg chain={chain} size={28} />
+            <span>{chain.name}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* ─── STATS ─── */}
     <section className="lp-stats">
       {[
-        { value: "~8s", label: "Avg. bridge time" },
-        { value: "$0.02", label: "Starting fee" },
-        { value: "7+", label: "Chains supported" },
-        { value: "24/7", label: "Relay active" },
+        { num: "~8s", label: "Avg. bridge time" },
+        { num: "$0.02", label: "Starting fee" },
+        { num: "7+", label: "Chains supported" },
+        { num: "99.9%", label: "Uptime" },
       ].map((s) => (
         <div key={s.label} className="lp-stat">
-          <span className="lp-stat-value">{s.value}</span>
+          <span className="lp-stat-num">{s.num}</span>
           <span className="lp-stat-label">{s.label}</span>
         </div>
       ))}
@@ -124,78 +126,46 @@ function LandingPage() {
 
     {/* ─── FEATURES ─── */}
     <section id="features" className="lp-section">
-      <div className="lp-section-label">Built for speed. Made for you.</div>
-      <h2 className="lp-section-title">Cross-chain infrastructure<br />that <span>just works</span>.</h2>
-      <p className="lp-section-desc">
-        Most crosschain infrastructure is built for DeFi. Masbro is built to a different standard —
-        payments-grade speed, cost, and reliability.
-      </p>
+      <div className="lp-section-label">Built for payments. Not just bridging.</div>
+      <h2 className="lp-section-title">Crosschain infrastructure<br />that <span>just works</span>.</h2>
       <div className="lp-features">
-        {features.map((f) => (
-          <div key={f.title} className="lp-feature-card" style={{ "--accent": f.color } as React.CSSProperties}>
-            <div className="lp-feature-icon"><f.icon size={22} /></div>
-            <h3>{f.title}</h3>
-            <p>{f.desc}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-
-    {/* ─── TRUSTED SECTION ─── */}
-    <section className="lp-section lp-dark">
-      <div className="lp-section-label">Trusted by</div>
-      <h2 className="lp-section-title">The interoperability layer for<br />the <span>onchain economy</span>.</h2>
-      <div className="lp-ecosystem">
-        <div className="lp-eco-card">
-          <span className="lp-eco-num">$20B+</span>
-          <span className="lp-eco-label">Settled across 7+ chains</span>
+        <div className="lp-feature">
+          <div className="lp-feature-icon"><Zap size={20} /></div>
+          <h3>Payments-grade speed</h3>
+          <p>Cheap, fast, and reliable crosschain transactions — completing most in ~8 seconds across 7+ chains with 99.9% uptime.</p>
         </div>
-        <div className="lp-eco-card">
-          <span className="lp-eco-num">99.9%</span>
-          <span className="lp-eco-label">Uptime & reliability</span>
+        <div className="lp-feature">
+          <div className="lp-feature-icon"><ShieldCheck size={20} /></div>
+          <h3>Enterprise features</h3>
+          <p>Fee sponsorship, app fees, referral tracking — everything serious fintech and wallet teams need in a single integration.</p>
         </div>
-        <div className="lp-eco-card">
-          <span className="lp-eco-num">100+</span>
-          <span className="lp-eco-label">Active integrations</span>
+        <div className="lp-feature">
+          <div className="lp-feature-icon"><Activity size={20} /></div>
+          <h3>Proven at scale</h3>
+          <p>Powering Phantom, MetaMask, and 100+ active integrations. The infrastructure teams choose when reliability is non-negotiable.</p>
         </div>
-        <div className="lp-eco-card">
-          <span className="lp-eco-num">~3s</span>
-          <span className="lp-eco-label">Average transaction</span>
+        <div className="lp-feature">
+          <div className="lp-feature-icon"><Fuel size={20} /></div>
+          <h3>Built to ship</h3>
+          <p>One integration connects your users to the entire onchain economy. Crosschain payments infrastructure that just works.</p>
         </div>
-      </div>
-    </section>
-
-    {/* ─── CHAINS GRID ─── */}
-    <section className="lp-section">
-      <div className="lp-section-label">Supported Networks</div>
-      <h2 className="lp-section-title">Move between <span>any chain</span>.</h2>
-      <div className="lp-chains-grid">
-        {CHAINS.map((chain) => (
-          <div key={chain.key} className="lp-chain-card" style={{ "--chain": chain.color } as React.CSSProperties}>
-            <div className="lp-chain-dot" />
-            <b>{chain.name}</b>
-            <small>{chain.native} · {chain.family.toUpperCase()}</small>
-          </div>
-        ))}
       </div>
     </section>
 
     {/* ─── CTA ─── */}
     <section className="lp-cta">
-      <div className="lp-cta-glow" />
       <h2>Ready to move cross-chain?</h2>
-      <p>Start swapping in seconds. No registration. No friction.</p>
-      <NavLink to="/swap" className="lp-primary-btn lp-large">
-        Launch Masbro Swap <ArrowRight size={20} />
+      <p>One integration. 7+ chains. Instantly.</p>
+      <NavLink to="/swap" className="lp-cta-btn">
+        Launch Masbro Swap <ArrowRight size={18} />
       </NavLink>
+      <div className="lp-cta-chains">
+        {CHAINS.map((chain) => (
+          <ChainSvg key={chain.key} chain={chain} size={22} />
+        ))}
+      </div>
     </section>
   </main>;
-}
-
-// Need to import GitBranch for the landing page icons
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function GitBranch(props: { size?: number; color?: string }) {
-  return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>;
 }
 
 /* ===================== SWAP PAGE ===================== */
