@@ -7,6 +7,7 @@ export function initRelay() {
   if (!initialized) {
     createClient({
       baseApiUrl: import.meta.env.VITE_RELAY_PROXY_URL || import.meta.env.VITE_RELAY_API_URL || MAINNET_RELAY_API,
+      apiKey: import.meta.env.VITE_RELAY_API_KEY,
       source: import.meta.env.VITE_RELAY_SOURCE || window.location.hostname || "masbro-swap",
       pollingInterval: 5000,
       uiVersion: "masbro-swap-v1",
