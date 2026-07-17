@@ -48,13 +48,157 @@ function WalletControl({ wallet, connect, disconnect }: { wallet: WalletState | 
 
 function Header({ wallet, connect, disconnect }: { wallet: WalletState | null; connect: () => void; disconnect: () => void }) {
   const [open, setOpen] = useState(false);
-  const links = [{ to: "/", label: "Swap", icon: Zap }, { to: "/history", label: "History", icon: History }, { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, { to: "/docs", label: "Docs", icon: BookOpen }];
+  const links = [{ to: "/", label: "Home", icon: Sparkles }, { to: "/swap", label: "Swap", icon: Zap }, { to: "/history", label: "History", icon: History }, { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, { to: "/docs", label: "Docs", icon: BookOpen }];
   return <header className="header"><div className="header-inner">
     <NavLink to="/" className="brand"><span className="brand-mark"><Sparkles size={19} /></span><span>Masbro <b>Swap</b><small>v1</small></span></NavLink>
     <nav className="desktop-nav" aria-label="Navigasi utama">{links.map(({ to, label }) => <NavLink key={to} to={to} end={to === "/"}>{label}</NavLink>)}</nav>
     <div className="header-actions"><span className="relay-status"><i /> Relay Online</span><WalletControl wallet={wallet} connect={connect} disconnect={disconnect} /><button className="mobile-menu" onClick={() => setOpen(!open)} aria-label="Menu"><Menu /></button></div>
   </div>{open && <nav className="mobile-nav">{links.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setOpen(false)} end={to === "/"}><Icon size={18} />{label}</NavLink>)}</nav>}</header>;
 }
+
+/* ===================== LANDING PAGE (relay.link inspired) ===================== */
+
+function LandingPage() {
+  const store = useAppStore();
+  const features = [
+    { icon: Zap, title: "Super Fast", desc: "Settlement dalam hitungan detik. Routing otomatis ke jalur tercepat di 85+ chain.", color: "#a855f7" },
+    { icon: ShieldCheck, title: "Non-Custodial", desc: "Aset tetap dalam kendali penuhmu. Masbro tidak pernah mengakses private key.", color: "#22d3ee" },
+    { icon: Fuel, title: "Gas Paling Hemat", desc: "Smart routing otomatis memilih chain dengan gas termurah untuk transaksimu.", color: "#34d399" },
+    { icon: GitBranch, title: "Multi-Chain", desc: "Bridge dan swap antar 7 chain utama: Ethereum, Base, Arbitrum, Solana & banyak lagi.", color: "#f59e0b" },
+  ];
+
+  return <main>
+    {/* ─── HERO ─── */}
+    <section className="lp-hero">
+      <div className="lp-hero-bg" />
+      <div className="lp-hero-content">
+        <div className="lp-badge"><Zap size={12} /> Powered by Relay Protocol</div>
+        <h1 className="lp-hero-title">
+          Swap & Bridge<br />
+          <span>Any Chain.</span><br />
+          <span className="lp-instant">Instantly.</span>
+        </h1>
+        <p className="lp-hero-sub">
+          Lightning-fast cross-chain swaps — bridge assets across 7+ chains in seconds.{' '}
+          <strong>No friction. No waiting.</strong>
+        </p>
+        <div className="lp-hero-actions">
+          <NavLink to="/swap" className="lp-primary-btn">
+            Start Swapping <ArrowRight size={18} />
+          </NavLink>
+          <a href="#features" className="lp-ghost-btn" onClick={(e) => { e.preventDefault(); document.getElementById("features")?.scrollIntoView({ behavior: "smooth" }); }}>
+            Learn More
+          </a>
+        </div>
+        {/* Chain bridge visual */}
+        <div className="lp-chain-visual">
+          {CHAINS.slice(0, 5).map((chain) => (
+            <span key={chain.key} className="lp-chain-bubble" style={{ "--chain": chain.color } as React.CSSProperties}>
+              {chain.short}
+            </span>
+          ))}
+          <span className="lp-chain-connector"><Zap size={16} /></span>
+          {CHAINS.slice(5).map((chain) => (
+            <span key={chain.key} className="lp-chain-bubble" style={{ "--chain": chain.color } as React.CSSProperties}>
+              {chain.short}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {/* ─── STATS BAR ─── */}
+    <section className="lp-stats">
+      {[
+        { value: "~8s", label: "Avg. bridge time" },
+        { value: "$0.02", label: "Starting fee" },
+        { value: "7+", label: "Chains supported" },
+        { value: "24/7", label: "Relay active" },
+      ].map((s) => (
+        <div key={s.label} className="lp-stat">
+          <span className="lp-stat-value">{s.value}</span>
+          <span className="lp-stat-label">{s.label}</span>
+        </div>
+      ))}
+    </section>
+
+    {/* ─── FEATURES ─── */}
+    <section id="features" className="lp-section">
+      <div className="lp-section-label">Built for speed. Made for you.</div>
+      <h2 className="lp-section-title">Cross-chain infrastructure<br />that <span>just works</span>.</h2>
+      <p className="lp-section-desc">
+        Most crosschain infrastructure is built for DeFi. Masbro is built to a different standard —
+        payments-grade speed, cost, and reliability.
+      </p>
+      <div className="lp-features">
+        {features.map((f) => (
+          <div key={f.title} className="lp-feature-card" style={{ "--accent": f.color } as React.CSSProperties}>
+            <div className="lp-feature-icon"><f.icon size={22} /></div>
+            <h3>{f.title}</h3>
+            <p>{f.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* ─── TRUSTED SECTION ─── */}
+    <section className="lp-section lp-dark">
+      <div className="lp-section-label">Trusted by</div>
+      <h2 className="lp-section-title">The interoperability layer for<br />the <span>onchain economy</span>.</h2>
+      <div className="lp-ecosystem">
+        <div className="lp-eco-card">
+          <span className="lp-eco-num">$20B+</span>
+          <span className="lp-eco-label">Settled across 7+ chains</span>
+        </div>
+        <div className="lp-eco-card">
+          <span className="lp-eco-num">99.9%</span>
+          <span className="lp-eco-label">Uptime & reliability</span>
+        </div>
+        <div className="lp-eco-card">
+          <span className="lp-eco-num">100+</span>
+          <span className="lp-eco-label">Active integrations</span>
+        </div>
+        <div className="lp-eco-card">
+          <span className="lp-eco-num">~3s</span>
+          <span className="lp-eco-label">Average transaction</span>
+        </div>
+      </div>
+    </section>
+
+    {/* ─── CHAINS GRID ─── */}
+    <section className="lp-section">
+      <div className="lp-section-label">Supported Networks</div>
+      <h2 className="lp-section-title">Move between <span>any chain</span>.</h2>
+      <div className="lp-chains-grid">
+        {CHAINS.map((chain) => (
+          <div key={chain.key} className="lp-chain-card" style={{ "--chain": chain.color } as React.CSSProperties}>
+            <div className="lp-chain-dot" />
+            <b>{chain.name}</b>
+            <small>{chain.native} · {chain.family.toUpperCase()}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* ─── CTA ─── */}
+    <section className="lp-cta">
+      <div className="lp-cta-glow" />
+      <h2>Ready to move cross-chain?</h2>
+      <p>Start swapping in seconds. No registration. No friction.</p>
+      <NavLink to="/swap" className="lp-primary-btn lp-large">
+        Launch Masbro Swap <ArrowRight size={20} />
+      </NavLink>
+    </section>
+  </main>;
+}
+
+// Need to import GitBranch for the landing page icons
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function GitBranch(props: { size?: number; color?: string }) {
+  return <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>;
+}
+
+/* ===================== SWAP PAGE ===================== */
 
 function AssetBox({ label, chain, token, amount, output, onAmount, onChain, onToken, readOnly = false }: {
   label: string; chain: Chain; token: Token; amount: string; output?: string; onAmount?: (v: string) => void; onChain: () => void; onToken: () => void; readOnly?: boolean;
@@ -139,11 +283,19 @@ function SwapPage({ wallet, connect }: { wallet: WalletState | null; connect: ()
     confetti({ particleCount: 90, spread: 65, origin: { y: 0.7 }, colors: ["#A855F7", "#22D3EE", "#ffffff"] });
     toast.success("Permintaan swap disiapkan", { description: "Lanjutkan konfirmasi pada wallet untuk eksekusi live." });
   }
-  const primaryText = !wallet ? "Connect Wallet untuk Swap" : !numericAmount ? "Masukkan Jumlah" : quote.isLoading ? "Mencari rute terbaik…" : quote.isError ? "Coba Quote Lagi" : "Review Swap";
+  const primaryText = !wallet ? "Connect Wallet" : !numericAmount ? "Enter Amount" : quote.isLoading ? "Finding best route…" : quote.isError ? "Retry Quote" : "Review Swap";
   const selectorModal = modal && ["fromChain", "toChain", "fromToken", "toToken"].includes(modal) ? modal as "fromChain" | "toChain" | "fromToken" | "toToken" : null;
 
-  return <main><section className="hero"><div className="eyebrow"><span><Zap size={13} /> POWERED BY RELAY</span><i />7 CHAINS · 1 CLICK</div><h1>Swap antar chain.<br /><span>Sekejap, tanpa ribet.</span></h1><p>Route tercepat. Gas paling hemat. Dari chain mana pun ke tujuanmu.</p><div className="hero-stats"><span><b>~8 sec</b> avg. bridge</span><span><b>$0.02</b> starting fee</span><span><b>24/7</b> Relay active</span></div></section>
-    <section className="swap-layout">
+  return <main className="swap-page">
+    {/* ─── SWAP HEADER ─── */}
+    <div className="swap-page-head">
+      <div className="swap-page-badge"><Zap size={12} /> CROSS-CHAIN SWAP</div>
+      <h1>Swap any token.<br /><span>Any chain. Instantly.</span></h1>
+      <p>Powered by Relay Protocol — 7+ chains, ~3s settlement</p>
+    </div>
+
+    <div className="swap-page-layout">
+      {/* ─── SWAP CARD ─── */}
       <div className="swap-card"><div className="card-top"><div><h2>Swap & Bridge</h2><p>Transfer aset lintas chain instan</p></div><div className="card-buttons"><button className={`settings-btn ${isFavorite ? "favorite" : ""}`} onClick={() => { store.toggleFavorite(); toast.success(isFavorite ? "Rute dihapus dari favorit" : "Rute disimpan ke favorit"); }} aria-label="Simpan pasangan"><Heart size={18} fill={isFavorite ? "currentColor" : "none"} /></button><button className="settings-btn" onClick={() => setDetails(!details)} aria-label="Pengaturan"><Settings2 size={19} /></button></div></div>
         {store.favorites.length > 0 && <div className="favorite-routes"><span>Favorit</span>{store.favorites.slice(0, 3).map((route) => <button key={route.id} onClick={() => store.applyFavorite(route)}>{route.fromToken} · {getChain(route.fromChain).short} <ArrowRight /> {route.toToken} · {getChain(route.toChain).short}</button>)}</div>}
         <AssetBox label="Kamu kirim" chain={fromChain} token={fromToken} amount={store.amount} onAmount={(amount) => store.setSwap({ amount })} onChain={() => setModal("fromChain")} onToken={() => setModal("fromToken")} />
@@ -159,15 +311,28 @@ function SwapPage({ wallet, connect }: { wallet: WalletState | null; connect: ()
         <button className="primary-action" onClick={primary} disabled={quote.isLoading}><span>{quote.isLoading && <RefreshCw className="spin" size={18} />}{primaryText}</span><ArrowRight size={20} /></button>
         <p className="security-note"><ShieldCheck size={14} /> Non-custodial · Diaudit · Dilindungi Relay</p>
       </div>
+
+      {/* ─── ROUTE CARD ─── */}
       <aside className="route-card"><div className="route-head"><span><i /> BEST ROUTE</span><small>{quote.data ? "LIVE" : "PREVIEW"}</small></div><h3>Relay Fast Bridge</h3><div className="route-visual"><div><ChainIcon chain={fromChain} size="lg" /><small>{fromChain.name}</small></div><div className="route-line"><i /><Zap size={17} /><i /></div><div><ChainIcon chain={toChain} size="lg" /><small>{toChain.name}</small></div></div><div className="route-metrics"><div><Clock3 /><span>Estimasi waktu<b>~{meta.seconds} detik</b></span></div><div><CircleDollarSign /><span>Network fee<b>{store.sponsored ? "$0 sponsored" : `~${meta.relayFeeUsd.toFixed(2)}`}</b></span></div><div><Gauge /><span>Price impact<b className={meta.impact > 1 ? "bad" : "good"}>{meta.impact.toFixed(2)}%</b></span></div></div><div className="route-alternatives"><span>Route comparison</span><div><b>Relay Fast</b><em>~{meta.seconds}s · ${meta.relayFeeUsd.toFixed(2)}</em><small>BEST</small></div><div className="muted"><b>Canonical bridge</b><em>~7 days · network gas</em><small>BACKUP</small></div></div><div className="route-footer"><span><Check size={14} /> Recommended</span><button onClick={() => toast.info("Relay Fast dipilih berdasarkan output, waktu, dan biaya terbaik")}>Lihat detail <ArrowUpRight size={14} /></button></div></aside>
+    </div>
+
+    {/* ─── SWAP PAGE FEATURES ─── */}
+    <section className="swap-trust">
+      <div><Zap /><span><b>Super Fast</b><small>Settlement dalam hitungan detik</small></span></div>
+      <div><ShieldCheck /><span><b>Aman & Non-custodial</b><small>Aset tetap dalam kendalimu</small></span></div>
+      <div><Fuel /><span><b>Gas Paling Hemat</b><small>Smart routing otomatis</small></span></div>
     </section>
-    <section className="trust-row"><div><Zap /><span><b>Super Fast</b><small>Settlement dalam hitungan detik</small></span></div><div><ShieldCheck /><span><b>Aman & Non-custodial</b><small>Aset tetap dalam kendalimu</small></span></div><div><Fuel /><span><b>Gas Paling Hemat</b><small>Smart routing otomatis</small></span></div></section>
+
+    {/* ─── MODALS ─── */}
     {selectorModal && <ModalShell title={selectorModal.includes("Chain") ? "Pilih network" : "Pilih token"} onClose={() => setModal(null)}><Selector mode={selectorModal.includes("Chain") ? "chain" : "token"} chainKey={selectorModal.startsWith("from") ? store.fromChain : store.toChain} onSelect={(value) => choose(selectorModal, value)} close={() => setModal(null)} /></ModalShell>}
     {modal === "review" && <ModalShell title="Review swap" wide onClose={() => setModal(null)}><div className="review-route"><div><TokenIcon token={fromToken} /><span><small>KAMU KIRIM</small><b>{store.amount} {fromToken.symbol}</b><em>{fromChain.name}</em></span></div><ArrowRight /><div><TokenIcon token={toToken} /><span><small>KAMU TERIMA</small><b>{output.toFixed(6)} {toToken.symbol}</b><em>{toChain.name}</em></span></div></div><div className="review-lines"><p><span>Rute</span><b>Relay Fast Bridge · ~{meta.seconds}s</b></p><p><span>Masbro Fee</span><b>{appFee.toFixed(4)} {fromToken.symbol} ({store.admin.feeBps / 100}%)</b></p><p><span>Relay / destination fee</span><b>{store.sponsored ? "Sponsored" : `~${meta.relayFeeUsd.toFixed(2)}`}</b></p><p><span>Price impact / slippage</span><b>{meta.impact.toFixed(2)}% / {store.slippage}%</b></p><p><span>Penerima</span><b>{shortAddress(recipient)}</b></p></div><div className="warning"><ShieldCheck /> Kamu akan diminta mengonfirmasi transaksi di wallet. Origin gas dan approval token mungkin tetap berlaku.</div><button className="primary-action" onClick={execute} disabled={executing}><span>{executing && <RefreshCw className="spin" size={18} />}{executing ? "Menyiapkan transaksi…" : "Konfirmasi di Wallet"}</span><ArrowRight /></button></ModalShell>}
     {modal === "progress" && <ModalShell title="Swap sedang diproses" onClose={() => undefined}><div className="progress-state"><span className="progress-orb"><RefreshCw className="spin" /></span><h3>Relay sedang bekerja</h3><p>Jangan tutup halaman sampai permintaan selesai disiapkan.</p><div className="stepper">{["Quote dikunci", "Approval & signing", "Relay execution", "Settlement"].map((step, index) => <div className={progress > index ? "done" : progress === index ? "active" : ""} key={step}><i>{progress > index ? <Check /> : index + 1}</i><span>{step}</span></div>)}</div></div></ModalShell>}
     {modal === "success" && <ModalShell title="Swap disiapkan" onClose={() => setModal(null)}><div className="success-state"><span><Check /></span><h3>Siap dikonfirmasi, Masbro!</h3><p>Permintaan tersimpan di riwayat lokal. Hubungkan adapter wallet live untuk signing dan pemantauan on-chain.</p><div className="success-actions"><button className="outline-btn" onClick={async () => { const text = `Saya swap ${store.amount} ${fromToken.symbol} dari ${fromChain.name} ke ${toChain.name} via Masbro Swap!`; if (navigator.share) await navigator.share({ title: "Masbro Swap", text, url: window.location.href }); else { await navigator.clipboard.writeText(`${text} ${window.location.href}`); toast.success("Teks share disalin"); } }}><Share2 /> Share</button><button className="primary-action" onClick={() => { setModal(null); store.setSwap({ amount: "" }); }}>Swap Lagi</button></div></div></ModalShell>}
+    {modal === "wallet" && <ModalShell title="Connect wallet" onClose={() => setModal(null)}><p className="modal-copy">Pilih wallet untuk mulai swap lintas chain.</p><button className="wallet-option" onClick={() => { connect(); setModal(null); }}><span className="wallet-logo">◆</span><span><b>Browser Wallet</b><small>MetaMask, Rabby, Coinbase & lainnya</small></span><ArrowRight /></button><button className="wallet-option" onClick={() => toast.info("Adapter Solana perlu dikonfigurasi dengan public RPC dan wallet provider.")}><span className="wallet-logo sol">S</span><span><b>Solana Wallet</b><small>Phantom, Solflare</small></span><ArrowRight /></button><p className="wallet-terms"><ShieldCheck /> Masbro tidak pernah mengakses seed phrase atau private key.</p></ModalShell>}
   </main>;
 }
+
+/* ===================== OTHER PAGES ===================== */
 
 function PageHead({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <div className="page-head"><span>{eyebrow}</span><h1>{title}</h1><p>{text}</p></div>; }
 
@@ -182,7 +347,7 @@ function HistoryPage() {
   const [filter, setFilter] = useState("all"), [search, setSearch] = useState("");
   const shown = history.filter((item) => (filter === "all" || item.status === filter) && `${item.fromToken} ${item.toToken} ${item.hash ?? ""}`.toLowerCase().includes(search.toLowerCase()));
   return <main className="page"><PageHead eyebrow="ACTIVITY" title="Riwayat Transaksi" text="Aktivitas swap dari browser ini. Riwayat bukan indeks lengkap seluruh wallet." /><ReferralCard /><div className="panel"><div className="toolbar"><div className="filters">{["all", "pending", "completed", "failed"].map((x) => <button key={x} className={filter === x ? "active" : ""} onClick={() => setFilter(x)}>{x === "all" ? "Semua" : x}</button>)}</div><div className="toolbar-actions"><div className="small-search"><Search /><input placeholder="Cari token atau hash" value={search} onChange={(e) => setSearch(e.target.value)} /></div>{history.length > 0 && <button className="ghost-btn danger" onClick={() => { if (confirm("Hapus seluruh riwayat lokal?")) clear(); }}>Hapus riwayat</button>}</div></div>
-    {shown.length === 0 ? <div className="empty"><span><History /></span><h3>Belum ada transaksi</h3><p>Swap pertama kamu akan muncul di sini, lengkap dengan status dan detail rute.</p><NavLink to="/" className="small-primary">Mulai Swap <ArrowRight /></NavLink></div> : <div className="history-list">{shown.map((item) => <article key={item.id}><div className={`status-dot ${item.status}`} /><div className="history-route"><b>{item.amount} {item.fromToken} <ArrowRight /> {item.output} {item.toToken}</b><span>{getChain(item.fromChain).name} → {getChain(item.toChain).name} · Masbro {item.fee} · Relay ${item.relayFee ?? "—"}{item.sponsored ? " · Sponsored" : ""}</span></div><div><b className={`status ${item.status}`}>{item.status}</b><span>{date(item.createdAt)}</span></div><button className="icon-btn" onClick={() => toast.info(`Penerima: ${item.recipient}`)}><ExternalLink /></button></article>)}</div>}</div></main>;
+    {shown.length === 0 ? <div className="empty"><span><History /></span><h3>Belum ada transaksi</h3><p>Swap pertama kamu akan muncul di sini, lengkap dengan status dan detail rute.</p><NavLink to="/swap" className="small-primary">Mulai Swap <ArrowRight /></NavLink></div> : <div className="history-list">{shown.map((item) => <article key={item.id}><div className={`status-dot ${item.status}`} /><div className="history-route"><b>{item.amount} {item.fromToken} <ArrowRight /> {item.output} {item.toToken}</b><span>{getChain(item.fromChain).name} → {getChain(item.toChain).name} · Masbro {item.fee} · Relay ${item.relayFee ?? "—"}{item.sponsored ? " · Sponsored" : ""}</span></div><div><b className={`status ${item.status}`}>{item.status}</b><span>{date(item.createdAt)}</span></div><button className="icon-btn" onClick={() => toast.info(`Penerima: ${item.recipient}`)}><ExternalLink /></button></article>)}</div>}</div></main>;
 }
 
 function DashboardPage() {
@@ -219,6 +384,13 @@ export default function App() {
     try { const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }) as string[]; const chainHex = await window.ethereum.request({ method: "eth_chainId" }) as string; if (accounts[0]) { setWallet({ address: accounts[0], chainId: Number(chainHex) }); setWalletModal(false); toast.success("Wallet terhubung"); } } catch { toast.error("Koneksi wallet dibatalkan"); }
   }
   function connect() { setWalletModal(true); }
-  const routes = useMemo(() => <Routes><Route path="/" element={<SwapPage wallet={wallet} connect={connect} />} /><Route path="/history" element={<HistoryPage />} /><Route path="/dashboard" element={<DashboardPage />} /><Route path="/docs" element={<DocsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes>, [wallet]);
-  return <div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><Header wallet={wallet} connect={connect} disconnect={() => { setWallet(null); toast.info("Wallet diputuskan"); }} />{routes}<Footer />{walletModal && <ModalShell title="Connect wallet" onClose={() => setWalletModal(false)}><p className="modal-copy">Pilih wallet untuk mulai swap lintas chain.</p><button className="wallet-option" onClick={connectInjected}><span className="wallet-logo">◆</span><span><b>Browser Wallet</b><small>MetaMask, Rabby, Coinbase & lainnya</small></span><ArrowRight /></button><button className="wallet-option" onClick={() => toast.info("Adapter Solana perlu dikonfigurasi dengan public RPC dan wallet provider.")}><span className="wallet-logo sol">S</span><span><b>Solana Wallet</b><small>Phantom, Solflare</small></span><ArrowRight /></button><p className="wallet-terms"><ShieldCheck /> Masbro tidak pernah mengakses seed phrase atau private key.</p></ModalShell>}</div>;
+  const routes = useMemo(() => <Routes>
+    <Route path="/" element={<LandingPage />} />
+    <Route path="/swap" element={<SwapPage wallet={wallet} connect={connect} />} />
+    <Route path="/history" element={<HistoryPage />} />
+    <Route path="/dashboard" element={<DashboardPage />} />
+    <Route path="/docs" element={<DocsPage />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>, [wallet]);
+  return <div className="app-shell"><div className="ambient ambient-one" /><div className="ambient ambient-two" /><Header wallet={wallet} connect={connect} disconnect={() => { setWallet(null); toast.info("Wallet diputuskan"); }} />{routes}<Footer /></div>;
 }
