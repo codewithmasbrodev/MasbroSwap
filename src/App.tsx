@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Activity, ArrowDown, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown, CircleDollarSign,
-  Clock3, Copy, ExternalLink, Fuel, Gauge, Gift, Heart, History, LayoutDashboard, Menu, RefreshCw, Search,
+  ArrowDown, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown,
+  Clock3, Copy, ExternalLink, Fuel, Gauge, Gift, Heart, History, Menu, RefreshCw, Search,
   Settings2, Share2, ShieldCheck, Sparkles, Wallet, X, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -48,7 +48,7 @@ function WalletControl({ wallet, connect, disconnect }: { wallet: WalletState | 
 
 function Header({ wallet, connect, disconnect }: { wallet: WalletState | null; connect: () => void; disconnect: () => void }) {
   const [open, setOpen] = useState(false);
-  const links = [{ to: "/", label: "Home", icon: Sparkles }, { to: "/swap", label: "Swap", icon: Zap }, { to: "/history", label: "History", icon: History }, { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, { to: "/docs", label: "Docs", icon: BookOpen }];
+  const links = [{ to: "/", label: "Home", icon: Sparkles }, { to: "/swap", label: "Swap", icon: Zap }, { to: "/history", label: "History", icon: History }, { to: "/docs", label: "Docs", icon: BookOpen }];
   return <header className="header"><div className="header-inner">
     <NavLink to="/" className="brand"><span className="brand-mark"><Sparkles size={19} /></span><span>Masbro <b>Swap</b><small>v1</small></span></NavLink>
     <nav className="desktop-nav" aria-label="Navigasi utama">{links.map(({ to, label }) => <NavLink key={to} to={to} end={to === "/"}>{label}</NavLink>)}</nav>
@@ -343,15 +343,6 @@ function HistoryPage() {
     {shown.length === 0 ? <div className="empty"><span><History /></span><h3>Belum ada transaksi</h3><p>Swap pertama kamu akan muncul di sini, lengkap dengan status dan detail rute.</p><NavLink to="/swap" className="small-primary">Mulai Swap <ArrowRight /></NavLink></div> : <div className="history-list">{shown.map((item) => <article key={item.id}><div className={`status-dot ${item.status}`} /><div className="history-route"><b>{item.amount} {item.fromToken} <ArrowRight /> {item.output} {item.toToken}</b><span>{getChain(item.fromChain).name} → {getChain(item.toChain).name} · Masbro {item.fee} · Relay ${item.relayFee ?? "—"}{item.sponsored ? " · Sponsored" : ""}</span></div><div><b className={`status ${item.status}`}>{item.status}</b><span>{date(item.createdAt)}</span></div><button className="icon-btn" onClick={() => toast.info(`Penerima: ${item.recipient}`)}><ExternalLink /></button></article>)}</div>}</div></main>;
 }
 
-function DashboardPage() {
-  const admin = useAppStore((s) => s.admin), save = useAppStore((s) => s.saveAdmin), reset = useAppStore((s) => s.resetAdmin), history = useAppStore((s) => s.history);
-  const [draft, setDraft] = useState<AdminSettings>(admin);
-  const spent = history.reduce((sum, item) => sum + Number(item.fee || 0), 0);
-  function update(key: keyof AdminSettings, value: string | boolean) { setDraft({ ...draft, [key]: key === "feeRecipient" || key === "autoTopUp" ? value : Number(value) } as AdminSettings); }
-  function submit() { if (draft.feeBps < 30 || draft.feeBps > 50) return toast.error("App fee harus antara 0,3%–0,5%"); if (draft.feeRecipient && !/^0x[a-fA-F0-9]{40}$/.test(draft.feeRecipient)) return toast.error("Alamat fee recipient tidak valid"); save(draft); toast.success("Pengaturan operator disimpan di browser ini"); }
-  return <main className="page"><PageHead eyebrow="OPERATOR CONSOLE" title="Dashboard" text="Kelola monetisasi dan sponsorship. Pengaturan ini bersifat lokal pada perangkat ini." /><div className="notice"><Activity /> <span><b>Static operator mode</b> Auto top-up membutuhkan keeper eksternal; tidak ada secret atau scheduler yang berjalan di browser.</span></div><div className="metric-grid"><div><span>Total Volume</span><b>{money(history.reduce((sum, item) => sum + Number(item.amount || 0), 0))}</b><small>{history.length} transaksi lokal</small></div><div><span>Accrued App Fees</span><b>{money(spent)}</b><button className="metric-action" onClick={() => toast.info("Claim memerlukan autentikasi operator dan wallet fee recipient.")}>Claim fees</button></div><div><span>Sponsorship Balance</span><b>—</b><small className="warning-text">Proxy belum mengirim data</small></div><div><span>Earnings Hari Ini</span><b>{money(history.filter((item) => Date.now() - item.createdAt < 86_400_000).reduce((sum, item) => sum + Number(item.fee || 0), 0))}</b><small>Rolling 24 jam</small></div></div><div className="dashboard-grid"><section className="panel form-panel"><div className="panel-title"><span><CircleDollarSign /></span><div><h2>App Fee Settings</h2><p>Diterapkan pada quote Relay berikutnya</p></div></div><label>Persentase fee <span>0,3%–0,5%</span><div className="input-suffix"><input type="number" min="0.3" max="0.5" step="0.05" value={draft.feeBps / 100} onChange={(e) => update("feeBps", String(Number(e.target.value) * 100))} /><i>%</i></div></label><label>Fee recipient (EVM)<input placeholder="0x…" value={draft.feeRecipient} onChange={(e) => update("feeRecipient", e.target.value)} /></label><div className="form-actions"><button className="small-primary" onClick={submit}>Simpan Pengaturan</button><button className="ghost-btn" onClick={() => { reset(); setDraft({ ...admin, feeBps: 35 }); }}>Reset</button></div></section><section className="panel form-panel"><div className="panel-title"><span><Fuel /></span><div><h2>Sponsorship</h2><p>Batas belanja fee tujuan</p></div></div><label>Max subsidization per swap<div className="input-suffix"><input type="number" value={draft.sponsorshipCap} onChange={(e) => update("sponsorshipCap", e.target.value)} /><i>USDC</i></div></label><div className="two-inputs"><label>Low threshold<input type="number" value={draft.threshold} onChange={(e) => update("threshold", e.target.value)} /></label><label>Top-up target<input type="number" value={draft.target} onChange={(e) => update("target", e.target.value)} /></label></div><label className="switch-label"><span><b>Auto top-up policy</b><small>Keeper eksternal menjalankan aturan threshold</small></span><button className={`toggle ${draft.autoTopUp ? "on" : ""}`} onClick={() => update("autoTopUp", !draft.autoTopUp)}><i /></button></label><button className="outline-btn" onClick={() => toast.info("Top-up memerlukan wallet Base, USDC, dan konfigurasi solver Relay yang tervalidasi.")}>Review Manual Top-up <ArrowUpRight /></button></section></div></main>;
-}
-
 function DocsPage() {
   const sections = [
     ["quick-start", "Quick Start", "Hubungkan wallet EVM, pilih aset asal dan tujuan, masukkan jumlah, lalu tinjau quote Relay sebelum signing."],
@@ -381,7 +372,6 @@ export default function App() {
     <Route path="/" element={<LandingPage />} />
     <Route path="/swap" element={<SwapPage wallet={wallet} connect={connect} />} />
     <Route path="/history" element={<HistoryPage />} />
-    <Route path="/dashboard" element={<DashboardPage />} />
     <Route path="/docs" element={<DocsPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>, [wallet]);
