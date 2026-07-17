@@ -257,41 +257,64 @@ function SwapPage({ wallet, connect }: { wallet: WalletState | null; connect: ()
   const selectorModal = modal && ["fromChain", "toChain", "fromToken", "toToken"].includes(modal) ? modal as "fromChain" | "toChain" | "fromToken" | "toToken" : null;
 
   return <main className="swap-page">
-    {/* ─── SWAP HEADER ─── */}
-    <div className="swap-page-head">
-      <div className="swap-page-badge"><Zap size={12} /> CROSS-CHAIN SWAP</div>
-      <h1>Swap any token.<br /><span>Any chain. Instantly.</span></h1>
-      <p>Powered by Relay Protocol — 7+ chains, ~3s settlement</p>
-    </div>
-
-    <div className="swap-page-layout">
-      {/* ─── SWAP CARD ─── */}
-      <div className="swap-card"><div className="card-top"><div><h2>Swap & Bridge</h2><p>Transfer aset lintas chain instan</p></div><div className="card-buttons"><button className={`settings-btn ${isFavorite ? "favorite" : ""}`} onClick={() => { store.toggleFavorite(); toast.success(isFavorite ? "Rute dihapus dari favorit" : "Rute disimpan ke favorit"); }} aria-label="Simpan pasangan"><Heart size={18} fill={isFavorite ? "currentColor" : "none"} /></button><button className="settings-btn" onClick={() => setDetails(!details)} aria-label="Pengaturan"><Settings2 size={19} /></button></div></div>
-        {store.favorites.length > 0 && <div className="favorite-routes"><span>Favorit</span>{store.favorites.slice(0, 3).map((route) => <button key={route.id} onClick={() => store.applyFavorite(route)}>{route.fromToken} · {getChain(route.fromChain).short} <ArrowRight /> {route.toToken} · {getChain(route.toChain).short}</button>)}</div>}
-        <AssetBox label="Kamu kirim" chain={fromChain} token={fromToken} amount={store.amount} onAmount={(amount) => store.setSwap({ amount })} onChain={() => setModal("fromChain")} onToken={() => setModal("fromToken")} />
-        <div className="direction-row"><span /><button onClick={() => { store.flip(); toast.success("Arah swap dibalik"); }} aria-label="Balik arah swap"><ArrowDown size={20} /></button><span /></div>
-        <AssetBox label="Kamu terima" chain={toChain} token={toToken} amount={store.amount} output={numericAmount ? (quote.isLoading ? "" : output.toFixed(6)) : ""} readOnly onChain={() => setModal("toChain")} onToken={() => setModal("toToken")} />
-        <label className="check-row"><input type="checkbox" checked={store.customRecipient} onChange={(e) => store.setSwap({ customRecipient: e.target.checked })} /><span>Kirim ke wallet lain</span></label>
-        {store.customRecipient && <input className="recipient-input" placeholder="Alamat 0x atau Solana" value={store.recipient} onChange={(e) => store.setSwap({ recipient: e.target.value })} />}
-        <div className={`sponsor-box ${!sponsoredAvailable ? "disabled" : ""}`}><span className="sponsor-icon"><Fuel size={19} /></span><div><b>Fee Sponsorship <small>GASLESS</small></b><p>{sponsoredAvailable ? "Fee tujuan ditanggung hingga batas operator" : "Butuh secure Relay proxy untuk diaktifkan"}</p></div><button className={`toggle ${store.sponsored ? "on" : ""}`} disabled={!sponsoredAvailable} onClick={() => store.setSwap({ sponsored: !store.sponsored })} aria-label="Toggle sponsorship"><i /></button></div>
-        {details && <div className="swap-settings"><span>Slippage tolerance</span><div>{[0.1, 0.5, 1].map((value) => <button key={value} className={store.slippage === value ? "active" : ""} onClick={() => store.setSwap({ slippage: value })}>{value}%</button>)}</div></div>}
-        {details && numericAmount > 0 && <div className="quote-mini" aria-live="polite"><div><span>Rate</span><b>1 {fromToken.symbol} ≈ {(output / numericAmount).toFixed(4)} {toToken.symbol}</b></div><div><span>Relay + network fee</span><b>{store.sponsored ? <s>${meta.relayFeeUsd.toFixed(2)}</s> : `${meta.relayFeeUsd.toFixed(2)}`}</b></div><div><span>Masbro Fee ({(store.admin.feeBps / 100).toFixed(2)}%)</span><b>{appFee.toFixed(4)} {fromToken.symbol}</b></div><div><span>Minimum received</span><b>{(output * (1 - store.slippage / 100)).toFixed(6)} {toToken.symbol}</b></div></div>}
-        {meta.impact > 1 && <div className="impact-warning"><Gauge /> Price impact {meta.impact.toFixed(2)}% cukup tinggi. Pertimbangkan jumlah lebih kecil.</div>}
-        {quote.isError && <p className="inline-error">{friendlyRelayError(quote.error)}</p>}
-        <button className="primary-action" onClick={primary} disabled={quote.isLoading}><span>{quote.isLoading && <RefreshCw className="spin" size={18} />}{primaryText}</span><ArrowRight size={20} /></button>
-        <p className="security-note"><ShieldCheck size={14} /> Non-custodial · Diaudit · Dilindungi Relay</p>
+    <div className="swap-widget">
+      <div className="swap-widget-header">
+        <span>Swap</span>
+        <button className={`sw-settings-btn ${isFavorite ? "fav" : ""}`} onClick={() => { store.toggleFavorite(); toast.success(isFavorite ? "Removed from favorites" : "Saved to favorites"); }} aria-label="Favorite"><Heart size={15} fill={isFavorite ? "currentColor" : "none"} /></button>
+        <button className="sw-settings-btn" onClick={() => setDetails(!details)} aria-label="Settings"><Settings2 size={15} /></button>
       </div>
 
-      {/* ─── ROUTE CARD ─── */}
-      <aside className="route-card"><div className="route-head"><span><i /> BEST ROUTE</span><small>{quote.data ? "LIVE" : "PREVIEW"}</small></div><h3>Relay Fast Bridge</h3><div className="route-visual"><div><ChainIcon chain={fromChain} size="lg" /><small>{fromChain.name}</small></div><div className="route-line"><i /><Zap size={17} /><i /></div><div><ChainIcon chain={toChain} size="lg" /><small>{toChain.name}</small></div></div><div className="route-metrics"><div><Clock3 /><span>Estimasi waktu<b>~{meta.seconds} detik</b></span></div><div><CircleDollarSign /><span>Network fee<b>{store.sponsored ? "$0 sponsored" : `~${meta.relayFeeUsd.toFixed(2)}`}</b></span></div><div><Gauge /><span>Price impact<b className={meta.impact > 1 ? "bad" : "good"}>{meta.impact.toFixed(2)}%</b></span></div></div><div className="route-alternatives"><span>Route comparison</span><div><b>Relay Fast</b><em>~{meta.seconds}s · ${meta.relayFeeUsd.toFixed(2)}</em><small>BEST</small></div><div className="muted"><b>Canonical bridge</b><em>~7 days · network gas</em><small>BACKUP</small></div></div><div className="route-footer"><span><Check size={14} /> Recommended</span><button onClick={() => toast.info("Relay Fast dipilih berdasarkan output, waktu, dan biaya terbaik")}>Lihat detail <ArrowUpRight size={14} /></button></div></aside>
-    </div>
+      <div className="sw-transfer">
+        <div className="sw-asset">
+          <label>You sell</label>
+          <div className="sw-input-row">
+            <input inputMode="decimal" placeholder="0.00" value={store.amount} onChange={(e) => store.setSwap({ amount: e.target.value.replace(/[^0-9.]/g, "") })} />
+            <button className="sw-token-btn" onClick={() => setModal("fromToken")}>
+              <TokenIcon token={fromToken} /><span>{fromToken.symbol}</span><ChevronDown size={14} />
+            </button>
+          </div>
+          <div className="sw-meta">
+            <span>{store.amount ? `≈ ${money(Number(store.amount) || 0)}` : "$0.00"}</span>
+            <button className="sw-chain-pill" onClick={() => setModal("fromChain")}>
+              <img src={`https://assets.relay.link/icons/square/${fromChain.id}/light.png`} alt="" width={16} height={16} style={{borderRadius:4}} />
+              {fromChain.name}<ChevronDown size={12} />
+            </button>
+          </div>
+        </div>
 
-    {/* ─── SWAP PAGE FEATURES ─── */}
-    <section className="swap-trust">
-      <div><Zap /><span><b>Super Fast</b><small>Settlement dalam hitungan detik</small></span></div>
-      <div><ShieldCheck /><span><b>Aman & Non-custodial</b><small>Aset tetap dalam kendalimu</small></span></div>
-      <div><Fuel /><span><b>Gas Paling Hemat</b><small>Smart routing otomatis</small></span></div>
-    </section>
+        <button className="sw-swap-btn" onClick={() => { store.flip(); toast.success("Direction flipped"); }} aria-label="Flip"><ArrowDown size={18} /></button>
+
+        <div className="sw-asset">
+          <label>You buy</label>
+          <div className="sw-input-row">
+            <input placeholder="0.00" value={numericAmount ? (quote.isLoading ? "" : output.toFixed(6)) : ""} readOnly />
+            <button className="sw-token-btn" onClick={() => setModal("toToken")}>
+              <TokenIcon token={toToken} /><span>{toToken.symbol}</span><ChevronDown size={14} />
+            </button>
+          </div>
+          <div className="sw-meta">
+            <span>{numericAmount ? `≈ ${money(output)}` : "$0.00"}</span>
+            <button className="sw-chain-pill" onClick={() => setModal("toChain")}>
+              <img src={`https://assets.relay.link/icons/square/${toChain.id}/light.png`} alt="" width={16} height={16} style={{borderRadius:4}} />
+              {toChain.name}<ChevronDown size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {details && numericAmount > 0 && <div className="sw-detail">
+        <div className="sw-detail-row"><span>Rate</span><b>1 {fromToken.symbol} ≈ {(output / numericAmount).toFixed(4)} {toToken.symbol}</b></div>
+        <div className="sw-detail-row"><span>Relay fee</span><b>{store.sponsored ? "Sponsored" : `~${meta.relayFeeUsd.toFixed(2)}`}</b></div>
+        <div className="sw-detail-row"><span>Slippage</span><b>{store.slippage}%</b></div>
+      </div>}
+
+      {quote.isError && <p className="sw-error">{friendlyRelayError(quote.error)}</p>}
+
+      <button className="sw-action" onClick={primary} disabled={quote.isLoading}>
+        {quote.isLoading && <RefreshCw className="spin" size={16} />}
+        {primaryText}
+      </button>
+    </div>
 
     {/* ─── MODALS ─── */}
     {selectorModal && <ModalShell title={selectorModal.includes("Chain") ? "Pilih network" : "Pilih token"} onClose={() => setModal(null)}><Selector mode={selectorModal.includes("Chain") ? "chain" : "token"} chainKey={selectorModal.startsWith("from") ? store.fromChain : store.toChain} onSelect={(value) => choose(selectorModal, value)} close={() => setModal(null)} /></ModalShell>}
