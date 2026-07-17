@@ -1,0 +1,8 @@
+{
+  "key": "static-site",
+  "name": "Static React App",
+  "description": "Client-rendered Vite/React/Tailwind runtime for sites, interfaces, visualizations, and games that do not need a backend.",
+  "runtime": "static",
+  "supportsDatabase": false,
+  "publishTarget": "static-assets"
+}

@@ -1,0 +1,10 @@
+{
+  "account_id": "063a249c867f3b72269758ead9d56f63",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "compatibility_date": "2026-05-20",
+  "name": "jatevo-preview-cmrpgcndf0001mjutrlyaosxa",
+  "workers_dev": true
+}
