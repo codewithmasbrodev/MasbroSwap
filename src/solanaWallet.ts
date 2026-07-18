@@ -1,4 +1,4 @@
-import { adaptSolanaWallet } from "@relayprotocol/relay-solana-wallet-adapter";
+import { adaptSolanaWallet } from "@relayprotocol/relay-svm-wallet-adapter";
 import { Connection, VersionedTransaction, Transaction, type SendOptions } from "@solana/web3.js";
 
 /** Relay's internal chain id for Solana (not the same as Solana's own concept of chain). */

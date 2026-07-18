@@ -76,7 +76,7 @@ export async function fetchRelayQuote(input: {
  */
 export async function executeRelayQuote(
   quote: unknown,
-  wallet: WalletClient | ReturnType<typeof import("@relayprotocol/relay-solana-wallet-adapter").adaptSolanaWallet>,
+  wallet: WalletClient | ReturnType<typeof import("@relayprotocol/relay-svm-wallet-adapter").adaptSolanaWallet>,
   onProgress: (event: RelayProgressEvent) => void,
 ) {
   return getClient().actions.execute({
