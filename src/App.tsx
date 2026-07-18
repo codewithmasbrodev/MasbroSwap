@@ -27,8 +27,11 @@ const date = (value: number) => new Intl.DateTimeFormat("id-ID", { dateStyle: "m
 function ChainIcon({ chain, size = "md" }: { chain: Chain; size?: "sm" | "md" | "lg" }) {
   return <span className={`chain-icon ${size}`} style={{ "--chain": chain.color } as React.CSSProperties}>{chain.short}</span>;
 }
-function TokenIcon({ token }: { token: Token }) {
-  return <span className="token-icon" style={{ "--token": token.color } as React.CSSProperties}>{token.symbol.slice(0, 1)}</span>;
+function TokenIcon({ token, size = 24 }: { token: Token; size?: number }) {
+  return <>
+    <img src={`https://assets.relay.link/icons/currencies/${token.symbol.toLowerCase()}.png`} alt={token.symbol} width={size} height={size} style={{borderRadius:size/2}} className="token-icon-img" onError={(e)=>{(e.target as HTMLImageElement).style.display="none"}} />
+    <span className="token-icon-fallback" style={{"--token":token.color,width:size,height:size,fontSize:size*0.4} as React.CSSProperties}>{token.symbol.slice(0,1)}</span>
+  </>;
 }
 
 function ModalShell({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
@@ -206,7 +209,7 @@ function quoteMeta(data: unknown) {
   };
 }
 
-function SwapPage({ wallet, connect }: { wallet: WalletState | null; connect: () => void }) {
+function SwapPage({ wallet, connect, connectInjected }: { wallet: WalletState | null; connect: () => void; connectInjected: () => Promise<void> }) {
   const store = useAppStore();
   const [modal, setModal] = useState<Modal>(null);
   const [details, setDetails] = useState(true);
@@ -237,7 +240,7 @@ function SwapPage({ wallet, connect }: { wallet: WalletState | null; connect: ()
     if (kind === "toToken") store.setSwap({ toToken: value });
   }
   function primary() {
-    if (!wallet) return connect();
+    if (!wallet) return setModal("wallet");
     if (!numericAmount) return toast.info("Masukkan jumlah yang ingin ditukar");
     if (store.customRecipient && !store.recipient) return toast.error("Masukkan alamat penerima");
     if (quote.isError) return quote.refetch();
@@ -321,7 +324,7 @@ function SwapPage({ wallet, connect }: { wallet: WalletState | null; connect: ()
     {modal === "review" && <ModalShell title="Review swap" wide onClose={() => setModal(null)}><div className="review-route"><div><TokenIcon token={fromToken} /><span><small>KAMU KIRIM</small><b>{store.amount} {fromToken.symbol}</b><em>{fromChain.name}</em></span></div><ArrowRight /><div><TokenIcon token={toToken} /><span><small>KAMU TERIMA</small><b>{output.toFixed(6)} {toToken.symbol}</b><em>{toChain.name}</em></span></div></div><div className="review-lines"><p><span>Rute</span><b>Relay Fast Bridge · ~{meta.seconds}s</b></p><p><span>Masbro Fee</span><b>{appFee.toFixed(4)} {fromToken.symbol} ({store.admin.feeBps / 100}%)</b></p><p><span>Relay / destination fee</span><b>{store.sponsored ? "Sponsored" : `~${meta.relayFeeUsd.toFixed(2)}`}</b></p><p><span>Price impact / slippage</span><b>{meta.impact.toFixed(2)}% / {store.slippage}%</b></p><p><span>Penerima</span><b>{shortAddress(recipient)}</b></p></div><div className="warning"><ShieldCheck /> Kamu akan diminta mengonfirmasi transaksi di wallet. Origin gas dan approval token mungkin tetap berlaku.</div><button className="primary-action" onClick={execute} disabled={executing}><span>{executing && <RefreshCw className="spin" size={18} />}{executing ? "Menyiapkan transaksi…" : "Konfirmasi di Wallet"}</span><ArrowRight /></button></ModalShell>}
     {modal === "progress" && <ModalShell title="Swap sedang diproses" onClose={() => undefined}><div className="progress-state"><span className="progress-orb"><RefreshCw className="spin" /></span><h3>Relay sedang bekerja</h3><p>Jangan tutup halaman sampai permintaan selesai disiapkan.</p><div className="stepper">{["Quote dikunci", "Approval & signing", "Relay execution", "Settlement"].map((step, index) => <div className={progress > index ? "done" : progress === index ? "active" : ""} key={step}><i>{progress > index ? <Check /> : index + 1}</i><span>{step}</span></div>)}</div></div></ModalShell>}
     {modal === "success" && <ModalShell title="Swap disiapkan" onClose={() => setModal(null)}><div className="success-state"><span><Check /></span><h3>Siap dikonfirmasi, Masbro!</h3><p>Permintaan tersimpan di riwayat lokal. Hubungkan adapter wallet live untuk signing dan pemantauan on-chain.</p><div className="success-actions"><button className="outline-btn" onClick={async () => { const text = `Saya swap ${store.amount} ${fromToken.symbol} dari ${fromChain.name} ke ${toChain.name} via Masbro Swap!`; if (navigator.share) await navigator.share({ title: "Masbro Swap", text, url: window.location.href }); else { await navigator.clipboard.writeText(`${text} ${window.location.href}`); toast.success("Teks share disalin"); } }}><Share2 /> Share</button><button className="primary-action" onClick={() => { setModal(null); store.setSwap({ amount: "" }); }}>Swap Lagi</button></div></div></ModalShell>}
-    {modal === "wallet" && <ModalShell title="Connect wallet" onClose={() => setModal(null)}><p className="modal-copy">Pilih wallet untuk mulai swap lintas chain.</p><button className="wallet-option" onClick={() => { connect(); setModal(null); }}><span className="wallet-logo">◆</span><span><b>Browser Wallet</b><small>MetaMask, Rabby, Coinbase & lainnya</small></span><ArrowRight /></button><button className="wallet-option" onClick={() => toast.info("Adapter Solana perlu dikonfigurasi dengan public RPC dan wallet provider.")}><span className="wallet-logo sol">S</span><span><b>Solana Wallet</b><small>Phantom, Solflare</small></span><ArrowRight /></button><p className="wallet-terms"><ShieldCheck /> Masbro tidak pernah mengakses seed phrase atau private key.</p></ModalShell>}
+    {modal === "wallet" && <ModalShell title="Connect wallet" onClose={() => setModal(null)}><p className="modal-copy">Pilih wallet untuk mulai swap lintas chain.</p><button className="wallet-option" onClick={async () => { await connectInjected(); setModal(null); }}><span className="wallet-logo">◆</span><span><b>Browser Wallet</b><small>MetaMask, Rabby, Coinbase & lainnya</small></span><ArrowRight /></button><button className="wallet-option" onClick={() => toast.info("Adapter Solana perlu dikonfigurasi dengan public RPC dan wallet provider.")}><span className="wallet-logo sol">S</span><span><b>Solana Wallet</b><small>Phantom, Solflare</small></span><ArrowRight /></button><p className="wallet-terms"><ShieldCheck /> Masbro tidak pernah mengakses seed phrase atau private key.</p></ModalShell>}
   </main>;
 }
 
@@ -370,7 +373,7 @@ export default function App() {
   function connect() { setWalletModal(true); }
   const routes = useMemo(() => <Routes>
     <Route path="/" element={<LandingPage />} />
-    <Route path="/swap" element={<SwapPage wallet={wallet} connect={connect} />} />
+    <Route path="/swap" element={<SwapPage wallet={wallet} connect={connect} connectInjected={connectInjected} />} />
     <Route path="/history" element={<HistoryPage />} />
     <Route path="/docs" element={<DocsPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
