@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowDown, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown,
-  Clock3, Copy, ExternalLink, Fuel, Gauge, Gift, Heart, History, Menu, RefreshCw, Search,
+  Activity, ArrowDown, ArrowRight, BookOpen, Check, ChevronDown,
+  Copy, ExternalLink, Fuel, Gift, Heart, History, Menu, RefreshCw, Search,
   Settings2, Share2, ShieldCheck, Sparkles, Wallet, X, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import confetti from "canvas-confetti";
 import { CHAINS, TOKENS, getChain, getToken } from "./config";
 import { fetchRelayQuote, friendlyRelayError, sponsorshipConfigured } from "./relay";
 import { useAppStore } from "./store";
-import type { AdminSettings, Chain, HistoryItem, Token } from "./types";
+import type { Chain, HistoryItem, Token } from "./types";
 
 declare global {
   interface Window { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }
