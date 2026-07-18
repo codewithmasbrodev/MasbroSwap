@@ -8,16 +8,43 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
+import { createWalletClient, custom } from "viem";
+import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 import { CHAINS, TOKENS, getChain, getToken } from "./config";
-import { fetchRelayQuote, friendlyRelayError, sponsorshipConfigured } from "./relay";
+import { executeRelayQuote, fetchRelayQuote, friendlyRelayError, sponsorshipConfigured, type RelayProgressEvent } from "./relay";
+import { buildRelaySolanaWallet, connectPhantom, phantomAvailable } from "./solanaWallet";
 import { useAppStore } from "./store";
-import type { Chain, HistoryItem, Token } from "./types";
+import type { Chain, ChainKey, HistoryItem, Token } from "./types";
 
 declare global {
-  interface Window { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }
+  interface Window {
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on?: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+    };
+  }
 }
 
-type WalletState = { address: string; chainId?: number };
+/** Maps our internal chain keys to viem's chain definitions, needed so the
+ *  wallet client sends transactions on the right EVM network. Solana isn't
+ *  here since it uses a different signing flow (SVM wallet adapter). */
+const VIEM_CHAINS: Partial<Record<ChainKey, typeof mainnet>> = {
+  ethereum: mainnet, base, arbitrum, optimism, polygon, bsc,
+};
+
+async function ensureWalletOnChain(chain: Chain) {
+  if (!window.ethereum) throw new Error("Wallet browser tidak ditemukan.");
+  const currentHex = await window.ethereum.request({ method: "eth_chainId" }) as string;
+  if (Number(currentHex) === chain.id) return;
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: `0x${chain.id.toString(16)}` }] });
+  } catch (error) {
+    throw new Error(`Ganti network wallet ke ${chain.name} lalu coba lagi. (${error instanceof Error ? error.message : "switch gagal"})`);
+  }
+}
+
+type WalletState = { address: string; chainId?: number; family: "evm" | "svm" };
 type Modal = "wallet" | "fromChain" | "toChain" | "fromToken" | "toToken" | "review" | "progress" | "success" | null;
 
 const shortAddress = (value: string) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "";
@@ -45,7 +72,7 @@ function ModalShell({ title, children, onClose, wide = false }: { title: string;
 }
 
 function WalletControl({ wallet, connect, disconnect }: { wallet: WalletState | null; connect: () => void; disconnect: () => void }) {
-  return wallet ? <button className="wallet-connected" onClick={disconnect} title="Klik untuk disconnect"><span className="online-dot" />{shortAddress(wallet.address)}<ChevronDown size={15} /></button>
+  return wallet ? <button className="wallet-connected" onClick={disconnect} title="Klik untuk disconnect"><span className="online-dot" />{wallet.family === "svm" ? "◎ " : ""}{shortAddress(wallet.address)}<ChevronDown size={15} /></button>
     : <button className="wallet-btn" onClick={connect}><Wallet size={17} /> <span>Connect Wallet</span></button>;
 }
 
@@ -209,18 +236,21 @@ function quoteMeta(data: unknown) {
   };
 }
 
-function SwapPage({ wallet, connect, connectInjected }: { wallet: WalletState | null; connect: () => void; connectInjected: () => Promise<void> }) {
+function SwapPage({ wallet, connect, connectInjected, connectPhantomWallet }: { wallet: WalletState | null; connect: () => void; connectInjected: () => Promise<void>; connectPhantomWallet: () => Promise<void> }) {
   const store = useAppStore();
   const [modal, setModal] = useState<Modal>(null);
   const [details, setDetails] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [stepLabel, setStepLabel] = useState("");
+  const [txResult, setTxResult] = useState<{ hash?: string; requestId?: string; explorer?: string } | null>(null);
   const fromChain = getChain(store.fromChain), toChain = getChain(store.toChain);
   const fromToken = getToken(store.fromToken), toToken = getToken(store.toToken);
   const numericAmount = Number(store.amount) || 0;
   const estimated = numericAmount * (fromToken.symbol === toToken.symbol ? 0.9982 : 0.9971);
-  const canQuote = Boolean(wallet && numericAmount > 0 && fromChain.family === "evm");
-  const recipient = store.customRecipient ? store.recipient : wallet?.address ?? "";
+  const canQuote = Boolean(wallet && numericAmount > 0 && wallet.family === fromChain.family);
+  const crossFamilyDestination = Boolean(wallet && toChain.family !== wallet.family);
+  const recipient = store.customRecipient ? store.recipient : (crossFamilyDestination ? "" : wallet?.address ?? "");
   const quote = useQuery({
     queryKey: ["relay-quote", store.fromChain, store.toChain, store.fromToken, store.toToken, store.amount, recipient, store.sponsored, store.slippage, store.admin],
     queryFn: () => fetchRelayQuote({ fromChain, toChain, fromToken, toToken, amount: store.amount, user: wallet!.address, recipient, sponsored: store.sponsored, slippage: store.slippage, admin: store.admin }),
@@ -240,23 +270,56 @@ function SwapPage({ wallet, connect, connectInjected }: { wallet: WalletState | 
     if (kind === "toToken") store.setSwap({ toToken: value });
   }
   function primary() {
-    if (!wallet) return setModal("wallet");
+    if (!wallet || walletMismatch) return setModal("wallet");
     if (!numericAmount) return toast.info("Masukkan jumlah yang ingin ditukar");
+    if (crossFamilyDestination && !store.recipient) return toast.error(`Tujuan ${toChain.name} beda tipe wallet — masukkan alamat penerima ${toChain.family === "svm" ? "Solana" : "EVM"} secara manual.`);
     if (store.customRecipient && !store.recipient) return toast.error("Masukkan alamat penerima");
     if (quote.isError) return quote.refetch();
     setModal("review");
   }
   async function execute() {
-    setExecuting(true); setProgress(1); setModal("progress");
-    await new Promise((resolve) => setTimeout(resolve, 650)); setProgress(2);
-    await new Promise((resolve) => setTimeout(resolve, 650)); setProgress(3);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const item: HistoryItem = { id: crypto.randomUUID(), createdAt: Date.now(), status: "pending", fromChain: store.fromChain, toChain: store.toChain, fromToken: store.fromToken, toToken: store.toToken, amount: store.amount, output: output.toFixed(6), fee: appFee.toFixed(4), relayFee: meta.relayFeeUsd.toFixed(2), priceImpact: meta.impact, sponsored: store.sponsored, recipient };
-    store.addHistory(item); setExecuting(false); setProgress(4); setModal("success");
-    confetti({ particleCount: 90, spread: 65, origin: { y: 0.7 }, colors: ["#A855F7", "#22D3EE", "#ffffff"] });
-    toast.success("Permintaan swap disiapkan", { description: "Lanjutkan konfirmasi pada wallet untuk eksekusi live." });
+    if (!quote.data) { toast.error("Quote belum siap. Coba refresh dulu."); return; }
+    if (!wallet || wallet.family !== fromChain.family) { toast.error("Hubungkan wallet yang sesuai dengan chain asal dulu."); return; }
+    const viemChain = fromChain.family === "evm" ? VIEM_CHAINS[store.fromChain] : undefined;
+    if (fromChain.family === "evm" && !viemChain) { toast.error("Chain asal ini belum didukung untuk signing browser."); return; }
+
+    setExecuting(true); setProgress(0); setStepLabel("Menyiapkan wallet…"); setTxResult(null); setModal("progress");
+    let lastRequestId: string | undefined;
+    let lastHash: string | undefined;
+    try {
+      let signer: Parameters<typeof executeRelayQuote>[1];
+      if (fromChain.family === "evm") {
+        await ensureWalletOnChain(fromChain);
+        signer = createWalletClient({ account: wallet.address as `0x${string}`, chain: viemChain!, transport: custom(window.ethereum!) });
+      } else {
+        signer = buildRelaySolanaWallet(wallet.address);
+      }
+
+      await executeRelayQuote(quote.data, signer, (event: RelayProgressEvent) => {
+        const steps = event.steps ?? [];
+        const total = Math.max(steps.length, 1);
+        const idx = event.currentStep ? steps.findIndex((s) => s.id === event.currentStep?.id) : -1;
+        setProgress(Math.min(idx >= 0 ? idx + 1 : total, total));
+        setStepLabel(event.currentStep?.description ?? event.currentStep?.action ?? "Memproses di Relay…");
+        const hashes = event.currentStepItem?.txHashes ?? event.txHashes;
+        if (hashes?.length) lastHash = hashes[hashes.length - 1]?.txHash ?? lastHash;
+        if (event.requestId) lastRequestId = event.requestId;
+      });
+
+      const item: HistoryItem = { id: crypto.randomUUID(), createdAt: Date.now(), status: "completed", fromChain: store.fromChain, toChain: store.toChain, fromToken: store.fromToken, toToken: store.toToken, amount: store.amount, output: output.toFixed(6), fee: appFee.toFixed(4), relayFee: meta.relayFeeUsd.toFixed(2), priceImpact: meta.impact, sponsored: store.sponsored, recipient, hash: lastHash, requestId: lastRequestId };
+      store.addHistory(item); setTxResult({ hash: lastHash, requestId: lastRequestId, explorer: lastHash ? `${fromChain.explorer}/tx/${lastHash}` : undefined });
+      setExecuting(false); setProgress(4); setModal("success");
+      confetti({ particleCount: 90, spread: 65, origin: { y: 0.7 }, colors: ["#A855F7", "#22D3EE", "#ffffff"] });
+      toast.success("Swap berhasil dieksekusi di Relay");
+    } catch (error) {
+      const item: HistoryItem = { id: crypto.randomUUID(), createdAt: Date.now(), status: "failed", fromChain: store.fromChain, toChain: store.toChain, fromToken: store.fromToken, toToken: store.toToken, amount: store.amount, output: output.toFixed(6), fee: appFee.toFixed(4), relayFee: meta.relayFeeUsd.toFixed(2), priceImpact: meta.impact, sponsored: store.sponsored, recipient, hash: lastHash, requestId: lastRequestId };
+      store.addHistory(item);
+      setExecuting(false); setModal("review");
+      toast.error(friendlyRelayError(error));
+    }
   }
-  const primaryText = !wallet ? "Connect Wallet" : !numericAmount ? "Enter Amount" : quote.isLoading ? "Finding best route…" : quote.isError ? "Retry Quote" : "Review Swap";
+  const walletMismatch = Boolean(wallet && wallet.family !== fromChain.family);
+  const primaryText = !wallet ? "Connect Wallet" : walletMismatch ? `Connect ${fromChain.family === "svm" ? "Solana" : "EVM"} Wallet` : !numericAmount ? "Enter Amount" : quote.isLoading ? "Finding best route…" : quote.isError ? "Retry Quote" : "Review Swap";
   const selectorModal = modal && ["fromChain", "toChain", "fromToken", "toToken"].includes(modal) ? modal as "fromChain" | "toChain" | "fromToken" | "toToken" : null;
 
   return <main className="swap-page">
@@ -322,9 +385,9 @@ function SwapPage({ wallet, connect, connectInjected }: { wallet: WalletState | 
     {/* ─── MODALS ─── */}
     {selectorModal && <ModalShell title={selectorModal.includes("Chain") ? "Pilih network" : "Pilih token"} onClose={() => setModal(null)}><Selector mode={selectorModal.includes("Chain") ? "chain" : "token"} chainKey={selectorModal.startsWith("from") ? store.fromChain : store.toChain} onSelect={(value) => choose(selectorModal, value)} close={() => setModal(null)} /></ModalShell>}
     {modal === "review" && <ModalShell title="Review swap" wide onClose={() => setModal(null)}><div className="review-route"><div><TokenIcon token={fromToken} /><span><small>KAMU KIRIM</small><b>{store.amount} {fromToken.symbol}</b><em>{fromChain.name}</em></span></div><ArrowRight /><div><TokenIcon token={toToken} /><span><small>KAMU TERIMA</small><b>{output.toFixed(6)} {toToken.symbol}</b><em>{toChain.name}</em></span></div></div><div className="review-lines"><p><span>Rute</span><b>Relay Fast Bridge · ~{meta.seconds}s</b></p><p><span>Masbro Fee</span><b>{appFee.toFixed(4)} {fromToken.symbol} ({store.admin.feeBps / 100}%)</b></p><p><span>Relay / destination fee</span><b>{store.sponsored ? "Sponsored" : `~${meta.relayFeeUsd.toFixed(2)}`}</b></p><p><span>Price impact / slippage</span><b>{meta.impact.toFixed(2)}% / {store.slippage}%</b></p><p><span>Penerima</span><b>{shortAddress(recipient)}</b></p></div><div className="warning"><ShieldCheck /> Kamu akan diminta mengonfirmasi transaksi di wallet. Origin gas dan approval token mungkin tetap berlaku.</div><button className="primary-action" onClick={execute} disabled={executing}><span>{executing && <RefreshCw className="spin" size={18} />}{executing ? "Menyiapkan transaksi…" : "Konfirmasi di Wallet"}</span><ArrowRight /></button></ModalShell>}
-    {modal === "progress" && <ModalShell title="Swap sedang diproses" onClose={() => undefined}><div className="progress-state"><span className="progress-orb"><RefreshCw className="spin" /></span><h3>Relay sedang bekerja</h3><p>Jangan tutup halaman sampai permintaan selesai disiapkan.</p><div className="stepper">{["Quote dikunci", "Approval & signing", "Relay execution", "Settlement"].map((step, index) => <div className={progress > index ? "done" : progress === index ? "active" : ""} key={step}><i>{progress > index ? <Check /> : index + 1}</i><span>{step}</span></div>)}</div></div></ModalShell>}
-    {modal === "success" && <ModalShell title="Swap disiapkan" onClose={() => setModal(null)}><div className="success-state"><span><Check /></span><h3>Siap dikonfirmasi, Masbro!</h3><p>Permintaan tersimpan di riwayat lokal. Hubungkan adapter wallet live untuk signing dan pemantauan on-chain.</p><div className="success-actions"><button className="outline-btn" onClick={async () => { const text = `Saya swap ${store.amount} ${fromToken.symbol} dari ${fromChain.name} ke ${toChain.name} via Masbro Swap!`; if (navigator.share) await navigator.share({ title: "Masbro Swap", text, url: window.location.href }); else { await navigator.clipboard.writeText(`${text} ${window.location.href}`); toast.success("Teks share disalin"); } }}><Share2 /> Share</button><button className="primary-action" onClick={() => { setModal(null); store.setSwap({ amount: "" }); }}>Swap Lagi</button></div></div></ModalShell>}
-    {modal === "wallet" && <ModalShell title="Connect wallet" onClose={() => setModal(null)}><p className="modal-copy">Pilih wallet untuk mulai swap lintas chain.</p><button className="wallet-option" onClick={async () => { await connectInjected(); setModal(null); }}><span className="wallet-logo">◆</span><span><b>Browser Wallet</b><small>MetaMask, Rabby, Coinbase & lainnya</small></span><ArrowRight /></button><button className="wallet-option" onClick={() => toast.info("Adapter Solana perlu dikonfigurasi dengan public RPC dan wallet provider.")}><span className="wallet-logo sol">S</span><span><b>Solana Wallet</b><small>Phantom, Solflare</small></span><ArrowRight /></button><p className="wallet-terms"><ShieldCheck /> Masbro tidak pernah mengakses seed phrase atau private key.</p></ModalShell>}
+    {modal === "progress" && <ModalShell title="Swap sedang diproses" onClose={() => undefined}><div className="progress-state"><span className="progress-orb"><RefreshCw className="spin" /></span><h3>{stepLabel || "Relay sedang bekerja"}</h3><p>Jangan tutup halaman — konfirmasi tiap step di wallet saat diminta.</p><div className="stepper">{["Quote dikunci", "Approval & signing", "Relay execution", "Settlement"].map((step, index) => <div className={progress > index ? "done" : progress === index ? "active" : ""} key={step}><i>{progress > index ? <Check /> : index + 1}</i><span>{step}</span></div>)}</div></div></ModalShell>}
+    {modal === "success" && <ModalShell title="Swap selesai" onClose={() => setModal(null)}><div className="success-state"><span><Check /></span><h3>Berhasil, Masbro!</h3><p>{txResult?.hash ? <>Tx: <a href={txResult.explorer} target="_blank" rel="noreferrer">{shortAddress(txResult.hash)} <ExternalLink size={13} /></a></> : "Transaksi tersimpan di riwayat. Cek status lanjut di halaman History."}</p><div className="success-actions"><button className="outline-btn" onClick={async () => { const text = `Saya swap ${store.amount} ${fromToken.symbol} dari ${fromChain.name} ke ${toChain.name} via Masbro Swap!`; if (navigator.share) await navigator.share({ title: "Masbro Swap", text, url: window.location.href }); else { await navigator.clipboard.writeText(`${text} ${window.location.href}`); toast.success("Teks share disalin"); } }}><Share2 /> Share</button><button className="primary-action" onClick={() => { setModal(null); store.setSwap({ amount: "" }); }}>Swap Lagi</button></div></div></ModalShell>}
+    {modal === "wallet" && <ModalShell title="Connect wallet" onClose={() => setModal(null)}><p className="modal-copy">Pilih wallet untuk mulai swap lintas chain.</p><button className="wallet-option" onClick={async () => { await connectInjected(); setModal(null); }}><span className="wallet-logo">◆</span><span><b>Browser Wallet</b><small>MetaMask, Rabby, Coinbase & lainnya</small></span><ArrowRight /></button><button className="wallet-option" onClick={async () => { await connectPhantomWallet(); setModal(null); }}><span className="wallet-logo sol">S</span><span><b>Solana Wallet</b><small>Phantom</small></span><ArrowRight /></button><p className="wallet-terms"><ShieldCheck /> Masbro tidak pernah mengakses seed phrase atau private key.</p></ModalShell>}
   </main>;
 }
 
@@ -343,13 +406,13 @@ function HistoryPage() {
   const [filter, setFilter] = useState("all"), [search, setSearch] = useState("");
   const shown = history.filter((item) => (filter === "all" || item.status === filter) && `${item.fromToken} ${item.toToken} ${item.hash ?? ""}`.toLowerCase().includes(search.toLowerCase()));
   return <main className="page"><PageHead eyebrow="ACTIVITY" title="Riwayat Transaksi" text="Aktivitas swap dari browser ini. Riwayat bukan indeks lengkap seluruh wallet." /><ReferralCard /><div className="panel"><div className="toolbar"><div className="filters">{["all", "pending", "completed", "failed"].map((x) => <button key={x} className={filter === x ? "active" : ""} onClick={() => setFilter(x)}>{x === "all" ? "Semua" : x}</button>)}</div><div className="toolbar-actions"><div className="small-search"><Search /><input placeholder="Cari token atau hash" value={search} onChange={(e) => setSearch(e.target.value)} /></div>{history.length > 0 && <button className="ghost-btn danger" onClick={() => { if (confirm("Hapus seluruh riwayat lokal?")) clear(); }}>Hapus riwayat</button>}</div></div>
-    {shown.length === 0 ? <div className="empty"><span><History /></span><h3>Belum ada transaksi</h3><p>Swap pertama kamu akan muncul di sini, lengkap dengan status dan detail rute.</p><NavLink to="/swap" className="small-primary">Mulai Swap <ArrowRight /></NavLink></div> : <div className="history-list">{shown.map((item) => <article key={item.id}><div className={`status-dot ${item.status}`} /><div className="history-route"><b>{item.amount} {item.fromToken} <ArrowRight /> {item.output} {item.toToken}</b><span>{getChain(item.fromChain).name} → {getChain(item.toChain).name} · Masbro {item.fee} · Relay ${item.relayFee ?? "—"}{item.sponsored ? " · Sponsored" : ""}</span></div><div><b className={`status ${item.status}`}>{item.status}</b><span>{date(item.createdAt)}</span></div><button className="icon-btn" onClick={() => toast.info(`Penerima: ${item.recipient}`)}><ExternalLink /></button></article>)}</div>}</div></main>;
+    {shown.length === 0 ? <div className="empty"><span><History /></span><h3>Belum ada transaksi</h3><p>Swap pertama kamu akan muncul di sini, lengkap dengan status dan detail rute.</p><NavLink to="/swap" className="small-primary">Mulai Swap <ArrowRight /></NavLink></div> : <div className="history-list">{shown.map((item) => <article key={item.id}><div className={`status-dot ${item.status}`} /><div className="history-route"><b>{item.amount} {item.fromToken} <ArrowRight /> {item.output} {item.toToken}</b><span>{getChain(item.fromChain).name} → {getChain(item.toChain).name} · Masbro {item.fee} · Relay ${item.relayFee ?? "—"}{item.sponsored ? " · Sponsored" : ""}</span></div><div><b className={`status ${item.status}`}>{item.status}</b><span>{date(item.createdAt)}</span></div><button className="icon-btn" onClick={() => { if (item.hash) window.open(`${getChain(item.fromChain).explorer}/tx/${item.hash}`, "_blank"); else toast.info(`Penerima: ${item.recipient}`); }}><ExternalLink /></button></article>)}</div>}</div></main>;
 }
 
 function DocsPage() {
   const sections = [
     ["quick-start", "Quick Start", "Hubungkan wallet EVM, pilih aset asal dan tujuan, masukkan jumlah, lalu tinjau quote Relay sebelum signing."],
-    ["wallets", "Wallets", "Wallet injected seperti MetaMask didukung pada mode browser. Rute Solana memerlukan adapter Solana dan alamat tujuan yang kompatibel."],
+    ["wallets", "Wallets", "Wallet injected EVM (MetaMask, Rabby, dll) dan Phantom untuk Solana didukung langsung untuk signing. Swap ke chain beda tipe (mis. EVM ↔ Solana) butuh alamat penerima manual."],
     ["app-fees", "App Fees", "Masbro meneruskan appFees pada options quote. Fee operator dibatasi 30–50 bps dan selalu ditampilkan sebelum konfirmasi."],
     ["sponsorship", "Fee Sponsorship", "Aktif hanya lewat proxy aman. Request memakai subsidizeFees dan maxSubsidizationAmount dalam unit USDC 6 desimal."],
     ["gasless", "Gasless Limitations", "Sponsorship tujuan tidak selalu menanggung origin gas. Approval token pertama dan rent Solana dapat tetap diperlukan."],
@@ -366,14 +429,44 @@ export default function App() {
   const [wallet, setWallet] = useState<WalletState | null>(null), [walletModal, setWalletModal] = useState(false);
   const location = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [location.pathname]);
+  useEffect(() => {
+    if (!window.ethereum?.on) return;
+    const onAccounts = (...args: unknown[]) => {
+      const accounts = args[0] as string[];
+      if (!accounts?.length) { setWallet(null); toast.info("Wallet diputuskan"); }
+      else setWallet((prev) => (prev ? { ...prev, address: accounts[0] } : prev));
+    };
+    const onChain = (...args: unknown[]) => {
+      const chainHex = args[0] as string;
+      setWallet((prev) => (prev ? { ...prev, chainId: Number(chainHex) } : prev));
+    };
+    window.ethereum.on("accountsChanged", onAccounts);
+    window.ethereum.on("chainChanged", onChain);
+    return () => { window.ethereum?.removeListener?.("accountsChanged", onAccounts); window.ethereum?.removeListener?.("chainChanged", onChain); };
+  }, []);
+  useEffect(() => {
+    if (!window.solana?.on) return;
+    const onDisconnect = () => { setWallet((prev) => (prev?.family === "svm" ? null : prev)); toast.info("Wallet Solana diputuskan"); };
+    const onAccount = (...args: unknown[]) => {
+      const pk = args[0] as { toString(): string } | null;
+      setWallet((prev) => (prev?.family === "svm" ? (pk ? { ...prev, address: pk.toString() } : null) : prev));
+    };
+    window.solana.on("disconnect", onDisconnect);
+    window.solana.on("accountChanged", onAccount);
+    return () => { window.solana?.removeListener("disconnect", onDisconnect); window.solana?.removeListener("accountChanged", onAccount); };
+  }, []);
   async function connectInjected() {
     if (!window.ethereum) { toast.error("Wallet browser tidak ditemukan", { description: "Pasang MetaMask atau wallet EVM kompatibel." }); return; }
-    try { const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }) as string[]; const chainHex = await window.ethereum.request({ method: "eth_chainId" }) as string; if (accounts[0]) { setWallet({ address: accounts[0], chainId: Number(chainHex) }); setWalletModal(false); toast.success("Wallet terhubung"); } } catch { toast.error("Koneksi wallet dibatalkan"); }
+    try { const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }) as string[]; const chainHex = await window.ethereum.request({ method: "eth_chainId" }) as string; if (accounts[0]) { setWallet({ address: accounts[0], chainId: Number(chainHex), family: "evm" }); setWalletModal(false); toast.success("Wallet terhubung"); } } catch { toast.error("Koneksi wallet dibatalkan"); }
+  }
+  async function connectPhantomWallet() {
+    if (!phantomAvailable()) { toast.error("Phantom tidak ditemukan", { description: "Pasang ekstensi Phantom untuk swap dari/ke Solana." }); return; }
+    try { const address = await connectPhantom(); setWallet({ address, family: "svm" }); setWalletModal(false); toast.success("Wallet Solana terhubung"); } catch (error) { toast.error(error instanceof Error ? error.message : "Koneksi Phantom dibatalkan"); }
   }
   function connect() { setWalletModal(true); }
   const routes = useMemo(() => <Routes>
     <Route path="/" element={<LandingPage />} />
-    <Route path="/swap" element={<SwapPage wallet={wallet} connect={connect} connectInjected={connectInjected} />} />
+    <Route path="/swap" element={<SwapPage wallet={wallet} connect={connect} connectInjected={connectInjected} connectPhantomWallet={connectPhantomWallet} />} />
     <Route path="/history" element={<HistoryPage />} />
     <Route path="/docs" element={<DocsPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
